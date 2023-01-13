@@ -241,31 +241,5 @@ if(button2_pressed()){
 
 
 
-	while (1)
-	{
-		for (int i = 0; i < 100; i++)
-		{
-			X_as_percentage(i);
-			_delay_ms(100);
-		}
-		for (int i = 100; i > 0; i--)
-		{
-			X_as_percentage(i);
-			_delay_ms(100);
-		}
-		_delay_ms(1000);
-		for (int i = 0; i > -100; i--)
-		{
-			X_as_percentage(i);
-			_delay_ms(100);
-		}
-		for (int i = -100; i < 0; i++)
-		{
-			X_as_percentage(i);
-			_delay_ms(100);
-		}
-		_delay_ms(1000);
-	}
-
 	return 0;
 }
