@@ -5,41 +5,25 @@
 #ifndef _H_BRIDGE_H_
 #define _H_BRIDGE_H_
 
+// These pins are available on the shield via the header:
+//
+//		Mega	Uno
+// digital 5	PE3	PD5
+// digital 6	PH3	PD6
+// digital 9	PH6	PB1
+// analog 5	PF5	PC5
 
-    //define voor x-as
-#define PORT_X_RPWM PORTH
-#define PIN_X_RPWM PH3//Digital pin 6
-#define DDR_X_RPWM DDRH
+// The settings below are for the Mega, modify
+// in case you want to use other pins
+#define PORT_RPWM	PORTG
+#define PIN_RPWM	PG5
+#define DDR_RPWM	DDRG
 
-#define PORT_X_LPWM PORTH
-#define PIN_X_LPWM PH4//Digital pin 7
-#define DDR_X_LPWM DDRH
+#define PORT_LPWM	PORTE
+#define PIN_LPWM	PE5
+#define DDR_LPWM	DDRE
 
-    //define voor de y-as
-#define PORT_Y_RPWM PORTH
-#define PIN_Y_RPWM PH5//Digital pin 8
-#define DDR_Y_RPWM DDRH
-
-#define PORT_Y_LPWM PORTH
-#define PIN_Y_LPWM PH6//Digital pin 9
-#define DDR_Y_LPWM DDRH
-
-    //define voor de z-as
-#define PORT_Z_RPWM PORTB
-#define PIN_Z_RPWM PB4//Digital pin 10
-#define DDR_Z_RPWM DDRB
-
-#define PORT_Z_LPWM PORTB
-#define PIN_Z_LPWM PB5//Digital pin 11
-#define DDR_Z_LPWM DDRB
-
-void X_as(void);
-void X_as_percentage(signed char percentage);
-
-void Y_as(void);
-void Y_as_percentage(signed char percentage);
-
-void Z_as(void);
-void Z_as_percentage(signed char percentage);
+void init_h_bridge(void);
+void h_bridge_set_percentage(signed char percentage);
 
 #endif /* _H_BRIDGE_H_ */

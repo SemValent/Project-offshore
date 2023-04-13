@@ -1,293 +1,365 @@
 #ifndef F_CPU
-#define F_CPU 16000000ul
+#define F_CPU	16000000ul
 #endif
-#include <util/delay.h>
-#include "h_bridge.h"
 #include <avr/io.h>
+#include <util/delay.h>
+#include "servo.h"
+#include "h_bridge.h"
+#include <avr/interrupt.h>
+/*
+servo 1 in op -10
+servo 1 uit op -65
+servo 2 in op -80
+servo 2 uit op -20
+*/
+//      Tilhulp
+//  Buttons             PIN
+#define opbouwen        PF3
+#define afbouwen        PF6
+#define noodstop        PD1
 
-#define DEBOUNCE_PERIOD_MS 15
+//  Output
+#define Buzzer          PF0
+#define Limit_top       PK7
+#define Limit_bottom    PK6
+// Servo_1         PH4
+//Servo_2         PH3
+// DC_motor_in     PG5
+// DC_motor_out    PE3
+//  Leds
+#define D1     PF1 //Led_Knop_opbouwen
+#define D2     PF2 //Led_knop_afbouwen
+#define D3     PK1 //Led_Working
+#define D4     PK2 //Led_noodstop
+#define D5     PK3 //led_in_noodstop
 
-volatile int Z_check = 0;
-volatile int X_cordinaat = 0;
-volatile int Y_cordinaat = 0;
-
-void init_knoppen(void){
-
- DDRF &= ~(1<<PF0);  // A0 input (button 1)
- DDRF &= ~(1<<PF1);  // A1 input (joystick up)
- DDRF &= ~(1<<PF2);  // A2 input (joystick left)
- DDRF &= ~(1<<PF3);  // A3 input (noodknop)
- DDRF &= ~(1<<PF4);  // A4 input (joystick right)
- DDRF &= ~(1<<PF5);  // A5 input (joystick down)
- DDRK &= ~(1<<PK1);  // A9 input (limit switch z_as)
- DDRK &= ~(1<<PK2);  // A10 input (limit switch x_as)
- DDRK &= ~(1<<PK6);  // A14 input (button 2)
- DDRK &= ~(1<<PK7);   //A15 input (button 3)
-}
-void init_leds(void){
- DDRF |= (1<< PF7); // a7 outpout (led)
- DDRK |= (1<< PK3); // a11 outpout(magneet)
- DDRK |= (1<< PK5); // a13 output (buzzer)
-}
-
-void init_timer(void){
-    TCCR3A = 0;
-    TCCR3B = (0<<CS32) | (1<<CS31) | (1<<CS30);
-}
-
-void init(void)
-{
-	init_X_as();
-	init_Y_as();
-	init_Z_as();
-	init_knoppen();
-	init_leds();
-	init_timer();
-}
-
-
-void delay(int time){
-    int timer = 0;
-
-    TCNT3 = 0;
-    TIFR3 = (1<<TOV3);
-
-    while (timer < time){
-
-            if (TIFR3 & (1<<TOV3))
+//Button functies
+static int button_opbouwen(void)
+    {
+        if (PINF & (1<<opbouwen))
+        {
+            _delay_ms (5);
+            if (PINF & (1<<opbouwen))
             {
-                TIFR3 = (1<<TOV3);
-                timer++;
+                return 0;
             }
         }
-}
-
-
- int button1_pressed(void)
-{
-    if (PINF &(1<<PF0)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINF &(1<<PF0)) return 1;
-        }
-        return 0;
-}
-
- int button2_pressed(void)
-{
-    if (PINK &(1<<PK6)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINK &(1<<PK6)) return 1;
-        }
-        return 0;
-}
-
-
-int joystick_up(void)
-{
-    if (PINF &(1<<PF1)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINF &(1<<PF1)) return 1;
-        }
-        return 0;
-}
-
-int joystick_left(void)
-{
-    if (PINF &(1<<PF2)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINF &(1<<PF2)) return 1;
-        }
-        return 0;
-}
-
-int nood_knop(void)
-{
-    if (PINF &(1<<PF3)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINF &(1<<PF3)) return 1;
-        }
-        return 0;
-}
-int joystick_right(void)
-{
-    if (PINF &(1<<PF4)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINF &(1<<PF4)) return 1;
-        }
-        return 0;
-}
-int joystick_down(void)
-{
-    if (PINF &(1<<PF5)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINF &(1<<PF5)) return 1;
-        }
-        return 0;
-}
-
-
- int limit_switch_Xas(void)
-{
-    if (PINK &(1<<PK1)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINK &(1<<PK1)) return 1;
-        }
-        return 0;
-}
-
- int limit_switch_Yas(void)
-{
-    if (PINK &(1<<PK2)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINK &(1<<PK2)) return 1;
-        }
-        return 0;
-}
-
-
-
-int button3_pressed(void)
-{
-    if (PINK &(1<<PK7)){
-    _delay_ms (DEBOUNCE_PERIOD_MS);
-        if (PINK &(1<<PK7)) return 1;
-        }
-        return 0;
-}
-
-
-void home_Xas(void)
-{
-    while (limit_switch_Xas()){
-
-		X_as_percentage(-100);
-
-     }
-
-    if (!limit_switch_Xas()){
-        X_as_percentage(0);
+        return 1;
     }
-    X_cordinaat = 0;
+static int button_afbouwen(void)
+    {
+        if (PINF & (1<<afbouwen))
+        {
+            _delay_ms (5);
+            if (PINF & (1<<afbouwen))
+            {
+                return 0;
+            }
+        }
+        return 1;
+    }
 
-}
+static int button_LimitTop(void)
+    {
+        if (PINK & (1<<Limit_top))
+        {
+            _delay_ms (5);
+            if (PINK & (1<<Limit_top))
+            {
+                return 0;
+            }
+        }
+        return 1;
+    }
+    static int button_LimitBottom(void)
+    {
+        if (PINK & (1<<Limit_bottom))
+        {
+            _delay_ms (5);
+            if (PINK & (1<<Limit_bottom))
+            {
+                return 0;
+            }
+        }
+        return 1;
+    }
 
-void home_Yas(void)
+static int button_noodstop(void)
+    {
+        if (PIND & (1<<noodstop))
+        {
+            _delay_ms (5);
+            if (PIND & (1<<noodstop))
+            {
+                return 0;
+            }
+        }
+        return 1;
+    }
+
+
+
+
+
+//led functies
+static void Led_Knop_Op_off(void){PORTK &= ~(1<<D1);}
+static void Led_Knop_Op_on(void){PORTK |= (1<<D1);}
+static void Led_Knop_Af_off(void){PORTK &= ~(1<<D2);}
+static void Led_Knop_Af_on(void){PORTK |= (1<<D2);}
+static void Led_working_off(void){PORTF &= ~(1<<D3);}
+static void Led_working_on(void){PORTF |= (1<<D3);}
+static void Led_noodstop_off(void){PORTF &= ~(1<<D4);}
+static void Led_noodstop_on(void){PORTF |= (1<<D4);}
+static void Led_in_noodstop_on(void){PORTK |= (1<<D5);}
+
+
+
+void init_timer(void)
 {
-    while (limit_switch_Yas()){
-
-		Y_as_percentage(100);
-
-     }
-
-    if (!limit_switch_Yas()){
-        Y_as_percentage(0);
+    TCCR3A = 0;
+    TCCR3B = (0<<CS32)|(1<<CS31)|(1<<CS30);
+}
+void delay(int time)
+{
+    int timer = 0;
+    TCNT3=0;
+    TIFR3= (1<<TOV3);
+    while (timer< time)
+    {
+        if (TIFR3&(1<<TOV3))
+        {
+            TIFR3= (1<<TOV3);
+            timer++;
+        }
     }
 }
 
-void pak_ton(void){
 
-    if (Z_check == 0){
 
-    Z_as_percentage(-100);
-    delay(19);
-    Z_as_percentage(0);
 
-    PORTK |= (1<<PK3);
-    delay(2);
+static void init(void)
+{
+    DDRF |= (1<<D3)|(1<<D4);
+    DDRK |= (1<<D1)|(1<<D2)|(1<<D5);
 
-    Z_as_percentage(100);
-    delay(19);
-    Z_as_percentage(0);
-
-    Z_check = 1;
-    }
-
-    else if (Z_check == 1){
-
-    Z_as_percentage(-100);
-    delay(19);
-    Z_as_percentage(0);
-
-    PORTK &= ~(1<<PK3);
-    delay(2);
-
-    Z_as_percentage(100);
-    delay(19);
-    Z_as_percentage(0);
-
-    Z_check = 0;
-    }
+    PORTK |= (1<<PK3);//led in noodstop
+    init_servo();
+    init_h_bridge();
+    init_timer();
 
 }
-
-
-
-
-
 int main(void)
 {
-	init();
+    init();
+
+    int stop = 0;
+    int i = 1;
+    int i2 = 1;
+    Led_in_noodstop_on();
+    //int State_Op = 0;
+    while(1)
+    {
+
+    if (button_noodstop()){
+        Led_noodstop_on();
+        stop = 1;
+    }
+    else{
+        Led_noodstop_off();
+        stop = 0;
+    }
 
 
-    while(1){
+        if (stop == 0)
+        {
+            if (button_opbouwen())
+            {
+                Led_Knop_Op_on();
+                switch (i)
+                {
+                case 1: //steigerdeel oppakken
+                    {
+                    // Led_working aan
+                    Led_working_on();
+                    // Haakjes_uit
+                    servo1_set_percentage(-65); // out
+                    servo2_set_percentage(-20); //out
+                    // Motor 1s naar boven
+                    delay(10);
+                    h_bridge_set_percentage(-100);
+                    delay(2);
+                    h_bridge_set_percentage(0);
+                    //State_Op = 1;
+                    i = 2;
+                    stop = 1;
+                    break;
+                    }
+                case 2: // steiger omhoog tillen
+                    {
+                        while(!button_LimitTop())
+                        {
+                            if (!button_noodstop()){
+                                h_bridge_set_percentage(-100);
+                                Led_noodstop_off();
+                            }
+                            else{
+                                h_bridge_set_percentage(0);
+                                Led_noodstop_on();
+                            }
+                        }
+                        h_bridge_set_percentage(0);
+                    i = 3;
+                    stop = 1;
+                    break;
+                    }
+                case 3: // Steiger plaatsen
+                    {
+                    //steiger plaatsen
+                    h_bridge_set_percentage(100);
+                    delay(4);
+                    h_bridge_set_percentage(0);
+                    i = 4;
+                    stop = 1;
+                    break;
+                    }
+                case 4: // back to Idle
+                    {
+                    servo1_set_percentage(-10); //in
+                    servo2_set_percentage(-80); //in
+                    delay(2);
+                    while(!button_LimitBottom())
+                    {
+                        if(!button_noodstop()){
+                            h_bridge_set_percentage(100);
+                            Led_noodstop_off();
+                        }
+                        else{
+                            h_bridge_set_percentage(0);
+                            Led_noodstop_on();
+                        }
+                    }
+                    h_bridge_set_percentage(0);
+                    i = 1;
+                    stop = 1;
+                // State_Op = 0;
+                    // Led_working uit & led knop op uit
+                    //Led_Knop_Af_off();
+                    Led_working_off();
+                    Led_Knop_Op_off();
+                    //Led_noodstop_on();
+                    break;
+                    }
+                default: // knop_afbouwen indrukken??
+                    {
+                    // alles naar idle
+                    //PORTB &= ~(1<<D3);
+                    //PORTB &= ~(1<<D4);
+                    i =  1;
+                    break;
+                    }
+                }// end switch case
+            }// end if opbouw
 
-        if (!nood_knop()){
+            if (button_afbouwen())
+            {
+                // led knop_Af aan
+                Led_Knop_Af_on();
+                switch (i2)
+                {
+                case 1: //steigerdeel 2 oppakken
+                    {
+                    // Led_working aan.
+                    Led_working_on();
+                    // Motor naar boven met delay
+                    while (!button_LimitTop())
+                        {
+                        if (!button_noodstop()){
+                            h_bridge_set_percentage(-100);
+                            Led_noodstop_off();
+                        }
+                        else{
+                            h_bridge_set_percentage(0);
+                            Led_noodstop_on();
+                        }
+                    }
+                    h_bridge_set_percentage(0);
+                    delay(3);
+                    h_bridge_set_percentage(100);
+                    delay(4);
+                    h_bridge_set_percentage(0);
+                    // haakjes uit
 
+                    i2 = 2;
+                    stop = 1;
+                    break;
+                    }
+                case 2: // 2de steiger optillen
+                    {
+                    // Motor omhoog in beetje om steiger los te maken
+                    servo1_set_percentage(-65);
+                    servo2_set_percentage(-20);
+                    delay(6);
+                    while (!button_LimitTop())
+                        {
+                        if (!button_noodstop()){
+                            h_bridge_set_percentage(-100);
+                            Led_noodstop_off();
+                        }
+                        else{
+                            h_bridge_set_percentage(0);
+                            Led_noodstop_on();
+                        }
 
-        if (button1_pressed()){
-            home_Xas();
-            home_Yas();
-        }
+                    }
+                    h_bridge_set_percentage(0);
 
-        if (!button2_pressed()){
-            pak_ton();
-        }
-
-        if (!button3_pressed()){
-            Z_as_percentage(100);
-        }
-
-        if (!joystick_right()){
-
-            if (X_cordinaat > 0)
-            X_as_percentage(-100);
-            delay(1);
-            X_cordinaat --;
-
-        }
-
-        if (!joystick_left()){
-
-            if (X_cordinaat < 22){
-            X_as_percentage(100);
-            delay(1);
-            X_cordinaat ++;
+                    i2 = 3;
+                    stop = 1;
+                    break;
+                    }
+                case 3: // Steiger naar beneden plaatsen & idle
+                    {
+                    // Motor naar beneden
+                    while(!button_LimitBottom())
+                    {
+                        if(!button_noodstop()){
+                            h_bridge_set_percentage(100);
+                            Led_noodstop_off();
+                        }
+                        else{
+                            h_bridge_set_percentage(0);
+                            Led_noodstop_on();
+                        }
+                    }
+                    h_bridge_set_percentage(0);
+                    // haakjes_in
+                    delay(10);
+                    servo1_set_percentage(-10);
+                    servo2_set_percentage(-80);
+                    Led_Knop_Af_off();
+                    Led_working_off();
+                    i2 = 1;
+                    stop = 1;
+                    break;
+                    }
+                default: // knop_opbouwen indrukken
+                    {
+                    //PORTB &= ~(1<<D1);
+                    //PORTB &= ~(1<<D2);
+                    // alles naar idle
+                    i2 =  1;
+                    break;
+                    }
+                }// end switch case
+            }//end if afbouw
+            }// if stop functie
+        else if ((!button_opbouwen())&&(!button_afbouwen()))
+            {
+                stop = 0;
             }
-        }
-
-        if (!joystick_down()){
-            Y_as_percentage(100);
-            delay(1);
-        }
-
-        if (!joystick_up()){
-            Y_as_percentage(-100);
-            delay(1);
-        }
-
-        else{
-            X_as_percentage(0);
-            Y_as_percentage(0);
-            Z_as_percentage(0);
-        }
-
-        }
-
 
 
 
     }
     return 0;
 }
-
-
